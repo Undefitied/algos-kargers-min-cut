@@ -1,5 +1,7 @@
 const fs = require('fs')
 
+// idea: from creating new label AB reduce algorithm to using only first label - A
+
 const getRandomInt = (min, max) => {
 	// including min, not including max
 	return Math.floor(Math.random() * (max - min)) + min;
@@ -56,34 +58,42 @@ fs.readFile('./data.txt', 'utf8', (err, data) => {
 		}
 	})
 
-	// console.log('start ->', Object.keys(vertices).length);
-	// console.log(Object.keys(edges))
-	// const minCutLength = repeatRandomContradiction({
-	// 	vertices,
-	// 	edges
-	// })
-	const result = randomContradiction({
-		vertices: {
-			...vertices,
-		},
-		edges: {
-			...edges
-		},
-		counter: 1
+	const minCutLength = repeatRandomContradiction({
+		vertices,
+		edges,
+		callback: (r) => {
+			console.log('r', r)
+		}
 	})
-
-	console.log('result', result.edges)
-
-	const minCutLength = Object.entries(result.edges).reduce((result, [startLabel, endLabelList]) => {
-		return result + Object.entries(endLabelList).reduce((r, [endLabel, indexList]) => r + indexList.length, 0)
-	}, 0)
+	// const result = randomContradiction({
+	// 	vertices: {
+	// 		...vertices,
+	// 	},
+	// 	edges: {
+	// 		...edges
+	// 	},
+	// 	counter: 1
+	// })
+	//
+	// console.log('result', result.edges)
+	//
+	// const minCutLength = getMinCutFromResult(result)
 
 	console.log('minCutLength', minCutLength)
 });
 
+const getMinCutFromResult = (result) => {
+	const minCutLength = Object.entries(result.edges).reduce((result, [startLabel, endLabelList]) => {
+		return result + Object.entries(endLabelList).reduce((r, [endLabel, indexList]) => r + indexList.length, 0)
+	}, 0)
+
+	return minCutLength
+}
+
 const repeatRandomContradiction = ({
 	vertices,
 	edges,
+	callback,
 }) => {
 	const n = Object.keys(vertices).length
 	const numberOfTimes = n * (n - 1) * Math.log(n)
@@ -92,35 +102,40 @@ const repeatRandomContradiction = ({
 	let k = n
 
 	for (let i = 0; i < numberOfTimes; i++) {
-		const result = randomContradiction({
-			vertices: {
-				...vertices,
-			},
-			edges: {
-				...edges
-			},
-			counter: 1
-		})
+		setTimeout(() => {
+			const counter = 1;
+			const newVerticesInstance = { ...vertices }
+			const newEdgesInstance = { ...edges }
+			const result = randomContradiction(newVerticesInstance, newEdgesInstance, counter)
 
-		if (result === 1) {
-			console.log(vertices)
-			throw new Error()
-		}
+			const minCutLength = getMinCutFromResult(result)
+			console.log(minCutLength, Object.keys(vertices).length, Object.keys(edges).length);
 
-		// console.log('result', result);
-		if (result < k) {
-			k = result
-		}
+			if (minCutLength < k) {
+				k = minCutLength
+			}
+
+			if (i === numberOfTimes - 1) {
+				callback(k)
+			}
+		}, 1)
 	}
 
 	return k
 }
 
-const randomContradiction = ({
+const getRandomNodeLabel = (edgeList) => {
+	const keys = Object.keys(edgeList)
+	const randomIndex = getRandomInt(0, keys.length)
+
+	return keys[randomIndex]
+}
+
+const randomContradiction = (
 	vertices,
 	edges,
 	counter,
-}) => {
+) => {
 	if (Object.keys(vertices).length === 2) {
 		return {
 			counter,
@@ -130,28 +145,9 @@ const randomContradiction = ({
 	}
 
 	const newCounter = counter + 1;
-	// console.log('newCounter', newCounter)
 
-	const allEdgesStartKeys = Object.keys(edges)
-	const randomEdgeStartIndex = getRandomInt(0, allEdgesStartKeys.length)
-	const randomNodeStartLabel = allEdgesStartKeys[randomEdgeStartIndex]
-	// console.log('randomNodeStartLabel', randomNodeStartLabel)
-
-	// console.log('edges[randomNodeStartLabel]', edges[randomNodeStartLabel])
-	const edgeEndKeys = Object.keys(edges[randomNodeStartLabel])
-	const randomEdgeEndIndex = getRandomInt(0, edgeEndKeys.length)
-	const randomNodeEndLabel = edgeEndKeys[randomEdgeEndIndex]
-	// console.log('randomNodeEndLabel', randomNodeEndLabel)
-
-
-	// debug
-	if (randomNodeEndLabel === undefined) {
-		console.error('edgeEndKeys', edgeEndKeys)
-		throw new Error()
-	}
-
-	const A = randomNodeStartLabel
-	const B = randomNodeEndLabel
+	const A = getRandomNodeLabel(edges)
+	const B = getRandomNodeLabel(edges[A])
 
 	const result = contradictEdge({
 		vertices,
@@ -160,13 +156,39 @@ const randomContradiction = ({
 		B,
 	})
 
-	// console.log('->', Object.keys(edges).length, Object.keys(result.edges).length);
-	// console.log('->', Object.keys(vertices).length, Object.keys(result.vertices).length);
-	return randomContradiction({
-		vertices: result.vertices,
-		edges: result.edges,
-		counter: newCounter
+	return randomContradiction(
+		result.vertices,
+		result.edges,
+		newCounter
+	)
+}
+
+const combineIndexes = (indexListA, indexListB) => {
+	const indexesLength = indexListA.length + indexListB.length
+
+	const indexes = []
+	for (let i = 1; i <= indexesLength; i++) {
+		indexes.push(i)
+	}
+
+	return indexes
+}
+
+const combineEdges = (endLabelsA, endLabelsB) => {
+	const result = endLabelsA
+
+	Object.entries(endLabelsB).forEach(([endLabel, indexList]) => {
+		if (result[endLabel]) {
+			// combine indexes
+			result[endLabel] = combineIndexes(result[endLabel], indexList)
+
+			return
+		}
+
+		result[endLabel] = indexList
 	})
+
+	return result
 }
 
 const contradictEdge = ({
@@ -176,86 +198,47 @@ const contradictEdge = ({
 	B,
 }) => {
 	// contradict edge=(A,B) means:
-	// 0. create new node AB
-	// 1. all edges from A now starts from AB
-	// 2. all edges from B now starts from AB
-	// 3. all edges to A now goes to AB
-	// 4. all edges to B now goes to AB
-	// 5. delete node A
-	// 6. delete node B
+	// 1. all edges from B now starts from A
+	// 2. all edges to B now goes to A
+	// 3. delete node B
 
-	// 0. create new node AB
-	const newNodeLabel = A + '/' + B
-	vertices[newNodeLabel] = true
-
-	// 3. all edges to A now goes to AB
-	// 4. all edges to B now goes to AB
-	Object.entries(edges).forEach(([edgeStartNodeLabel, edgeEndNodeLabelList]) => {
-		console.clear()
-		console.log('A, B', A, B)
-		// A
-		if (edgeEndNodeLabelList[A]) {
-			// delete self-loops
-			if (edgeStartNodeLabel === B) {
-				delete edges[edgeStartNodeLabel][A]
-
-				if (Object.keys(edges[edgeStartNodeLabel]).length === 0) {
-					delete edges[edgeStartNodeLabel]
-				}
-			} else {
-
-				// replace endLabel
-				edges[edgeStartNodeLabel][newNodeLabel] = [
-					...edgeEndNodeLabelList[A]
-				]
-
-				// delete previous endLabel
-				delete edges[edgeStartNodeLabel][A]
-
-			}
+	// 1. all edges from B now starts from A
+	if (edges[B]) {
+		if (edges[A]) {
+			edges[A] = combineEdges(edges[A], edges[B])
+		} else {
+			edges[A] = edges[B]
 		}
 
-		// B
-		if (edgeEndNodeLabelList[B]) {
-			// delete self-loops
-			if (edgeStartNodeLabel === A) {
-				delete edges[edgeStartNodeLabel][B]
-
-				if (Object.keys(edges[edgeStartNodeLabel]).length === 0) {
-					delete edges[edgeStartNodeLabel]
-				}
-			} else {
-
-				edges[edgeStartNodeLabel][newNodeLabel] = [
-					...edgeEndNodeLabelList[B]
-				]
-				delete edges[edgeStartNodeLabel][B]
-
-			}
-		}
-
-		if (edges[edgeStartNodeLabel] && Object.keys(edges[edgeStartNodeLabel]).length === 0) {
-			console.log('A, B', A, B)
-			throw new Error()
-		}
-	})
-
-	// after inner edges job was done (3,4 above)
-	// 1. all edges from A now starts from AB
-	// 2. all edges from B now starts from AB
-	if (edges[A] || edges[B]) {
-		edges[newNodeLabel] = {
-			...edges[A],
-			...edges[B],
+		if (edges[A][A]) {
+			// delete self-loop
+			delete edges[A][A]
 		}
 	}
 
-	delete edges[A]
-	delete edges[B]
+	// 2. all edges to B now goes to A
+	Object.entries(edges).forEach(([edgeStartNodeLabel, edgeEndNodeLabelList]) => {
+		// B
+		if (edgeEndNodeLabelList[B]) {
+			if (edgeStartNodeLabel === A) {
+				// delete self-loop
+				delete edges[A][B]
+			} else {
 
-	// 5. delete node A
-	// 6. delete node B
-	delete vertices[A]
+				if (edges[edgeStartNodeLabel][A]) {
+					edges[edgeStartNodeLabel][A] = combineIndexes(edges[edgeStartNodeLabel][A], edges[edgeStartNodeLabel][B])
+
+				} else {
+					edges[edgeStartNodeLabel][A] = edges[edgeStartNodeLabel][B]
+				}
+
+				delete edges[edgeStartNodeLabel][B]
+			}
+		}
+	})
+
+	// 3. delete node B
+	delete edges[B]
 	delete vertices[B]
 
 	return {
