@@ -1,35 +1,37 @@
 module.exports = data => {
+
+	/*
+		Data format:
+
+		vertices = Number
+
+		edges = {
+			[startNode]: {
+				[endNode]: [Boolean]
+			}
+		}
+	*/
+
 	const rows = data.split('\n')
 
-	const vertices = {}
+	let vertices = 0
 	const edges = {}
 
 	rows.forEach(row => {
 		row = row.split('\t')
 
 		const label = row[0]
-		vertices[label] = true
-		edges[label] = {}
+		vertices++
 
 		row.forEach((element, index) => {
 			if (index === 0) {
 				return
 			}
 
-			if (edges[label][element]) {
-				const list = edges[label][element];
-
-				// indexes for parallel edges
-				edges[label][element].push(list.length)
-
-			} else {
-				edges[label][element] = [1]
-			}
+			edges[label] = edges[label] ? edges[label] : {}
+			edges[label][element] = edges[label][element] ? edges[label][element] : []
+			edges[label][element].push(true)
 		})
-
-		if (Object.keys(edges[label]).length === 0) {
-			throw new Error()
-		}
 	})
 
 	return {
