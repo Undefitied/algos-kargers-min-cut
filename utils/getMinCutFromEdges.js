@@ -1,7 +1,5 @@
 module.exports = (edges) => {
-	const minCutLength = Object.entries(edges).reduce((result, [startLabel, endLabelList]) => {
-		return result + Object.entries(endLabelList).reduce((r, [endLabel, indexList]) => r + indexList.length, 0)
-	}, 0)
-
-	return minCutLength
+	const keys = Object.keys(edges)
+	// edges here is always an object with 2 keys, with mirror content
+	return edges[keys[0]][keys[1]].length
 }

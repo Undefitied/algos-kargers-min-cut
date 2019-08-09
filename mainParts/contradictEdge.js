@@ -1,57 +1,63 @@
 const combineEdges = require('../utils/combineEdges')
 const combineIndexes = require('../utils/combineIndexes')
 
+/*
+	Data format:
+
+	vertices = Number
+
+	edges = {
+		[startNode]: {
+			[endNode]: [Boolean]
+		}
+	}
+*/
+
 module.exports = (
-	initialVertices,
-	initialEdges,
+	vertices,
+	edges,
 	A,
 	B,
 ) => {
-	const vertices = JSON.parse(JSON.stringify(initialVertices))
-	const edges = JSON.parse(JSON.stringify(initialEdges))
-
 	// contradict edge=(A,B) means:
+	// 0. remove self loops
 	// 1. all edges from B now starts from A
 	// 2. all edges to B now goes to A
 	// 3. delete node B
 
-	// 1. all edges from B now starts from A
-	if (edges[B]) {
-		if (edges[A]) {
-			edges[A] = combineEdges(edges[A], edges[B])
+	// 0. remove self loops
+	delete edges[A][B]
+	delete edges[B][A]
+
+	Object.keys(edges[B]).forEach((endLabel) => {
+		// 1. all edges from B now starts from A
+		// if has same start points, merge inner edge arrays
+		if (edges[A][endLabel]) {
+			edges[A][endLabel] = [
+				...edges[A][endLabel],
+				...edges[B][endLabel],
+			]
 		} else {
-			edges[A] = edges[B]
+			edges[A][endLabel] = edges[B][endLabel]
 		}
 
-		if (edges[A][A]) {
-			// delete self-loop
-			delete edges[A][A]
+		// 2. all edges to B now goes to A
+		// if there already was A, merge by same way as above
+		if (edges[endLabel][A]) {
+			edges[endLabel][A] = [
+				...edges[endLabel][A],
+				...edges[endLabel][B],
+			]
+		} else {
+			edges[endLabel][A] = edges[endLabel][B]
 		}
-	}
 
-	// 2. all edges to B now goes to A
-	Object.entries(edges).forEach(([edgeStartNodeLabel, edgeEndNodeLabelList]) => {
-		if (edgeEndNodeLabelList[B]) {
-			if (edgeStartNodeLabel === A) {
-				// delete self-loop
-				delete edges[A][B]
-			} else {
-
-				if (edges[edgeStartNodeLabel][A]) {
-					edges[edgeStartNodeLabel][A] = combineIndexes(edges[edgeStartNodeLabel][A], edges[edgeStartNodeLabel][B])
-
-				} else {
-					edges[edgeStartNodeLabel][A] = edges[edgeStartNodeLabel][B]
-				}
-
-				delete edges[edgeStartNodeLabel][B]
-			}
-		}
+		delete edges[endLabel][B]
 	})
 
 	// 3. delete node B
 	delete edges[B]
-	delete vertices[B]
+	vertices--
 
 	return {
 		vertices,
